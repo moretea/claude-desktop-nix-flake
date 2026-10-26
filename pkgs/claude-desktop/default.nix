@@ -201,12 +201,23 @@ stdenv.mkDerivation (finalAttrs: {
   preFixup = ''
     gappsWrapperArgs+=(
       --prefix PATH : ${lib.makeBinPath runtimeBins}
+      --prefix PATH : $out/libexec/claude-desktop
       --prefix LD_LIBRARY_PATH : ${lib.makeLibraryPath runtimeLibs}
       --set-default ELECTRON_OZONE_PLATFORM_HINT auto
     )
   '';
 
   postFixup = ''
+    # Electron passes LD_LIBRARY_PATH on to xdg-open and the host's browser
+    # launchers (e.g. kde-open), which then crash against our newer libs.
+    mkdir -p "$out/libexec/claude-desktop"
+    cat > "$out/libexec/claude-desktop/xdg-open" <<'EOS'
+    #!${stdenv.shell}
+    unset LD_LIBRARY_PATH
+    exec ${xdg-utils}/bin/xdg-open "$@"
+    EOS
+    chmod +x "$out/libexec/claude-desktop/xdg-open"
+
     makeWrapper "$out/lib/claude-desktop/claude-desktop" "$out/bin/claude-desktop" \
       "''${gappsWrapperArgs[@]}"
   '';
